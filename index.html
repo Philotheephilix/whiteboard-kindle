@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Touch Whiteboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            overflow: hidden;
+            touch-action: none;
+            background: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+            background: white;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        #toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #333;
+            padding: 10px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 10;
+        }
+        button {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            touch-action: manipulation;
+            min-width: 60px;
+        }
+        button:active {
+            background: #777;
+        }
+        button.active {
+            background: #4CAF50;
+        }
+        .color-btn {
+            width: 45px;
+            height: 45px;
+            padding: 0;
+            border: 2px solid white;
+            border-radius: 50%;
+        }
+        #size-container {
+            display: flex;
+            gap: 5px;
+        }
+        .size-btn {
+            padding: 10px 15px;
+            font-size: 14px;
+            min-width: 45px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="toolbar">
+        <button class="color-btn" style="background: black;" data-color="#000000"></button>
+        <button class="color-btn" style="background: red;" data-color="#ff0000"></button>
+        <button class="color-btn" style="background: blue;" data-color="#0000ff"></button>
+        <div id="size-container">
+            <button class="size-btn" data-size="2">S</button>
+            <button class="size-btn active" data-size="5">M</button>
+            <button class="size-btn" data-size="10">L</button>
+        </div>
+        <button id="eraser">Eraser</button>
+        <button id="clear">Clear</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: false });
+        const toolbar = document.getElementById('toolbar');
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - toolbar.offsetHeight;
+        }
+        resizeCanvas();
+        let drawing = false;
+        let currentColor = '#000000';
+        let currentSize = 5;
+        let isEraser = false;
+        let lastX = 0;
+        let lastY = 0;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            if (e.touches) {
+                return {
+                    x: e.touches[0].clientX - rect.left,
+                    y: e.touches[0].clientY - rect.top
+                };
+            }
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+        function startDrawing(e) {
+            e.preventDefault();
+            drawing = true;
+            const coords = getCoords(e);
+            lastX = coords.x;
+            lastY = coords.y;
+        }
+        function draw(e) {
+            if (!drawing) return;
+            e.preventDefault();
+            
+            const coords = getCoords(e);
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(coords.x, coords.y);
+            ctx.strokeStyle = isEraser ? '#ffffff' : currentColor;
+            ctx.lineWidth = isEraser ? currentSize * 3 : currentSize;
+            ctx.stroke();
+            
+            lastX = coords.x;
+            lastY = coords.y;
+        }
+        function stopDrawing() {
+            drawing = false;
+        }
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('touchcancel', stopDrawing);
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentColor = btn.dataset.color;
+                isEraser = false;
+                document.getElementById('eraser').classList.remove('active');
+            });
+        });
+        document.querySelectorAll('.size-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentSize = parseInt(btn.dataset.size);
+                document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        document.getElementById('eraser').addEventListener('click', function() {
+            isEraser = !isEraser;
+            this.classList.toggle('active');
+        });
+        document.getElementById('clear').addEventListener('click', () => {
+            if (confirm('Clear everything?')) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        });
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
