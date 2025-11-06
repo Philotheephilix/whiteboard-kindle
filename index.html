@@ -96,14 +96,19 @@
             canvas.height = window.innerHeight - toolbar.offsetHeight;
         }
         resizeCanvas();
+        
+        // Drawing state
         let drawing = false;
         let currentColor = '#000000';
         let currentSize = 5;
         let isEraser = false;
-        let lastX = 0;
-        let lastY = 0;
+        let points = [];
+        
+        // Optimize context settings
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        
+        // Get coordinates from touch or mouse
         function getCoords(e) {
             const rect = canvas.getBoundingClientRect();
             if (e.touches) {
@@ -117,40 +122,117 @@
                 y: e.clientY - rect.top
             };
         }
+        
+        // Start drawing
         function startDrawing(e) {
             e.preventDefault();
             drawing = true;
+            points = [];
             const coords = getCoords(e);
-            lastX = coords.x;
-            lastY = coords.y;
+            points.push(coords);
+            
+            // Draw initial point
+            ctx.strokeStyle = isEraser ? '#ffffff' : currentColor;
+            ctx.lineWidth = isEraser ? currentSize * 3 : currentSize;
+            ctx.beginPath();
+            ctx.arc(coords.x, coords.y, (isEraser ? currentSize * 3 : currentSize) / 2, 0, Math.PI * 2);
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.fill();
         }
+        
+        // Draw
         function draw(e) {
             if (!drawing) return;
             e.preventDefault();
             
             const coords = getCoords(e);
+            points.push(coords);
             
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(coords.x, coords.y);
-            ctx.strokeStyle = isEraser ? '#ffffff' : currentColor;
-            ctx.lineWidth = isEraser ? currentSize * 3 : currentSize;
-            ctx.stroke();
-            
-            lastX = coords.x;
-            lastY = coords.y;
+            // Only draw the new segment
+            if (points.length >= 2) {
+                ctx.strokeStyle = isEraser ? '#ffffff' : currentColor;
+                ctx.lineWidth = isEraser ? currentSize * 3 : currentSize;
+                ctx.beginPath();
+                
+                const len = points.length;
+                if (len === 2) {
+                    // First segment - draw from point 0 to point 1
+                    ctx.moveTo(points[0].x, points[0].y);
+                    ctx.lineTo(points[1].x, points[1].y);
+                } else {
+                    // Use quadratic curve for smooth lines
+                    // Control point is the previous point
+                    // End point is midway to current point
+                    const prev = points[len - 2];
+                    const curr = points[len - 1];
+                    const mid = {
+                        x: (prev.x + curr.x) / 2,
+                        y: (prev.y + curr.y) / 2
+                    };
+                    
+                    if (len === 3) {
+                        // Second segment - start from first point
+                        ctx.moveTo(points[0].x, points[0].y);
+                        ctx.quadraticCurveTo(points[1].x, points[1].y, mid.x, mid.y);
+                    } else {
+                        // Subsequent segments
+                        const prevPrev = points[len - 3];
+                        const prevMid = {
+                            x: (prevPrev.x + prev.x) / 2,
+                            y: (prevPrev.y + prev.y) / 2
+                        };
+                        ctx.moveTo(prevMid.x, prevMid.y);
+                        ctx.quadraticCurveTo(prev.x, prev.y, mid.x, mid.y);
+                    }
+                }
+                
+                ctx.stroke();
+            }
         }
-        function stopDrawing() {
+        
+        // Stop drawing
+        function stopDrawing(e) {
+            if (!drawing) return;
+            
+            // Draw final segment to last point
+            if (points.length >= 2) {
+                e.preventDefault();
+                ctx.strokeStyle = isEraser ? '#ffffff' : currentColor;
+                ctx.lineWidth = isEraser ? currentSize * 3 : currentSize;
+                ctx.beginPath();
+                
+                const len = points.length;
+                const prev = points[len - 2];
+                const last = points[len - 1];
+                const prevPrev = len > 2 ? points[len - 3] : points[0];
+                
+                const mid = {
+                    x: (prevPrev.x + prev.x) / 2,
+                    y: (prevPrev.y + prev.y) / 2
+                };
+                
+                ctx.moveTo(len > 2 ? mid.x : prev.x, len > 2 ? mid.y : prev.y);
+                ctx.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
+                ctx.stroke();
+            }
+            
             drawing = false;
+            points = [];
         }
+        
+        // Touch events
         canvas.addEventListener('touchstart', startDrawing);
         canvas.addEventListener('touchmove', draw);
         canvas.addEventListener('touchend', stopDrawing);
         canvas.addEventListener('touchcancel', stopDrawing);
+        
+        // Mouse events (for testing on desktop)
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseleave', stopDrawing);
+        
+        // Color buttons
         document.querySelectorAll('.color-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 currentColor = btn.dataset.color;
@@ -158,6 +240,8 @@
                 document.getElementById('eraser').classList.remove('active');
             });
         });
+        
+        // Size buttons
         document.querySelectorAll('.size-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 currentSize = parseInt(btn.dataset.size);
@@ -165,15 +249,21 @@
                 btn.classList.add('active');
             });
         });
+        
+        // Eraser
         document.getElementById('eraser').addEventListener('click', function() {
             isEraser = !isEraser;
             this.classList.toggle('active');
         });
+        
+        // Clear canvas
         document.getElementById('clear').addEventListener('click', () => {
             if (confirm('Clear everything?')) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
         });
+        
+        // Handle orientation change
         window.addEventListener('resize', resizeCanvas);
     </script>
 </body>
